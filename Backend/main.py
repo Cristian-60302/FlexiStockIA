@@ -427,6 +427,66 @@ def crear_producto():
         return jsonify({
             "error": "Error creando el producto"
         }), 500
+    # =========================================================
+# ENDPOINT - CREAR CATEGORÍA
+# POST /categorias
+# =========================================================
+
+@app.route("/categorias", methods=["POST"])
+def crear_categoria():
+
+    try:
+        data = request.get_json()
+
+        id_empresa = data.get("id_empresa")
+        nombre = data.get("nombre")
+        descripcion = data.get("descripcion")
+
+        if not id_empresa or not nombre:
+            return jsonify({
+                "error": "id_empresa y nombre son obligatorios"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            INSERT INTO categorias
+            (
+                id_empresa,
+                nombre,
+                descripcion
+            )
+            VALUES (%s, %s, %s)
+            RETURNING *
+        """, (
+            id_empresa,
+            nombre,
+            descripcion
+        ))
+
+        categoria = cursor.fetchone()
+
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "mensaje": "Categoría creada correctamente",
+            "categoria": categoria
+        }), 201
+
+    except psycopg2.errors.ForeignKeyViolation:
+        return jsonify({
+            "error": "La empresa indicada no existe"
+        }), 400
+
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "error": "Error creando la categoría"
+        }), 500
 
 
 # =========================================================
