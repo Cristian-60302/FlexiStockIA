@@ -360,6 +360,72 @@ def actualizar_inventario(id_objeto):
 
         return jsonify({
             "error": "Error actualizando inventario"
+        }), 5003
+# =========================================================
+# ENDPOINT - CREAR PRODUCTO
+# POST /productos
+# =========================================================
+
+@app.route("/productos", methods=["POST"])
+def crear_producto():
+
+    try:
+        data = request.get_json()
+
+        id_empresa = data.get("id_empresa")
+        nombre = data.get("nombre")
+        descripcion = data.get("descripcion")
+        marca = data.get("marca")
+        id_categoria = data.get("id_categoria")
+
+        if not id_empresa or not nombre:
+            return jsonify({
+                "error": "id_empresa y nombre son obligatorios"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            INSERT INTO productos
+            (
+                id_empresa,
+                nombre,
+                descripcion,
+                marca,
+                id_categoria
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING *
+        """, (
+            id_empresa,
+            nombre,
+            descripcion,
+            marca,
+            id_categoria
+        ))
+
+        producto = cursor.fetchone()
+
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "mensaje": "Producto creado correctamente",
+            "producto": producto
+        }), 201
+
+    except psycopg2.errors.ForeignKeyViolation:
+        return jsonify({
+            "error": "La empresa o la categoría indicada no existen"
+        }), 400
+
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "error": "Error creando el producto"
         }), 500
 
 
