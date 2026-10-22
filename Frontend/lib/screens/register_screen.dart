@@ -38,9 +38,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           content: Text('Cuenta creada con éxito. Inicia sesión.'),
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(context); // Regresa a la pantalla de Login
     } else {
-      final msg = response['data']['message'] ?? 'Error al registrar';
+      final msg = response['data']['error'] ?? 'Error al registrar';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }

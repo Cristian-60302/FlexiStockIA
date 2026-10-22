@@ -145,6 +145,57 @@ def obtener_productos():
             "error": "Error consultando productos"
         }), 500
 
+# =========================================================
+# ENDPOINT - REGISTRO DE USUARIO
+# POST /registro
+# =========================================================
+
+@app.route("/registro", methods=["POST"])
+def registrar_usuario():
+    try:
+        data = request.get_json()
+
+        nombre = data.get("nombre")
+        correo = data.get("correo")
+        password = data.get("password")
+        id_empresa = data.get("id_empresa", 1)  # Por defecto asigna empresa 1 si no se envía
+
+        if not nombre or not correo or not password:
+            return jsonify({
+                "error": "Nombre, correo y contraseña son obligatorios"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Insertar nuevo usuario
+        cursor.execute("""
+            INSERT INTO usuarios (nombre, correo, password, id_empresa)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id_usuario, nombre, correo, id_empresa
+        """, (nombre, correo, password, id_empresa))
+
+        nuevo_usuario = cursor.fetchone()
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "mensaje": "Usuario registrado exitosamente",
+            "usuario": nuevo_usuario
+        }), 201
+
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({
+            "error": "El correo electrónico ya está registrado"
+        }), 409
+
+    except Exception as e:
+        print(e)
+        return jsonify({
+            "error": "Error interno al registrar usuario"
+        }), 500
 
 # =========================================================
 # ENDPOINT 3 - AGREGAR OBJETO AL INVENTARIO
