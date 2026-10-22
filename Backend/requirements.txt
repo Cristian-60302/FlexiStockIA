@@ -1,0 +1,14 @@
+# Framework Web
+Flask>=3.0.0,<4.0.0
+
+# Habilitación de CORS para comunicación con Flutter / Web
+flask-cors>=4.0.0,<5.0.0
+
+# Conector de PostgreSQL para Neon.tech
+psycopg2-binary>=2.9.9,<3.0.0
+
+# Carga de variables de entorno (.env)
+python-dotenv>=1.0.0,<2.0.0
+
+# Servidor WSGI para producción / pruebas avanzadas (Opcional pero recomendado)
+gunicorn>=21.2.0,<22.0.0
