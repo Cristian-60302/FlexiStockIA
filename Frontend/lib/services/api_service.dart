@@ -1,21 +1,32 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart'; // Requerido para kIsWeb
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Nota: Usamos 10.0.2.2 para conectar el emulador de Android a tu PC local (localhost)
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  // Ajustado al puerto 3000 de tu Flask
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:3000';
+    } else {
+      return 'http://10.0.2.2:3000';
+    }
+  }
 
   static Future<Map<String, dynamic>> login(
-    String email,
+    String correo,
     String password,
   ) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/login'),
+        Uri.parse('$baseUrl/login'), // Apunta directamente a /login
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
+        body: jsonEncode({
+          'correo': correo, // Mapeado como 'correo' para coincidir con Flask
+          'password': password,
+        }),
       );
+
       return {
         'statusCode': response.statusCode,
         'data': jsonDecode(response.body),
@@ -23,21 +34,26 @@ class ApiService {
     } catch (e) {
       return {
         'statusCode': 500,
-        'data': {'message': 'Error de conexión con el servidor'},
+        'data': {'error': 'Error de conexión con el servidor'},
       };
     }
   }
 
   static Future<Map<String, dynamic>> register(
     String name,
-    String email,
+    String correo,
     String password,
   ) async {
     try {
+      // Como aún no tienes endpoint /registro en main.py, enviamos la petición estructurada
       final response = await http.post(
-        Uri.parse('$baseUrl/auth/register'),
+        Uri.parse('$baseUrl/registro'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name, 'email': email, 'password': password}),
+        body: jsonEncode({
+          'nombre': name,
+          'correo': correo,
+          'password': password,
+        }),
       );
       return {
         'statusCode': response.statusCode,
@@ -46,7 +62,7 @@ class ApiService {
     } catch (e) {
       return {
         'statusCode': 500,
-        'data': {'message': 'Error de conexión con el servidor'},
+        'data': {'error': 'Error de conexión con el servidor'},
       };
     }
   }

@@ -32,11 +32,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (response['statusCode'] == 200) {
+      // Tu backend devuelve un objeto 'usuario' con su nombre
+      final usuario = response['data']['usuario'];
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('¡Inicio de sesión exitoso!')),
+        SnackBar(content: Text('¡Bienvenido ${usuario['nombre']}!')),
       );
+      // TODO: Navegar al Dashboard principal pasando datos como usuario['id_empresa']
     } else {
-      final msg = response['data']['message'] ?? 'Error al iniciar sesión';
+      // Leemos la clave 'error' que devuelve Flask
+      final msg = response['data']['error'] ?? 'Error al iniciar sesión';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
