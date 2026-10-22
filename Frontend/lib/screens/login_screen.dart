@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'dashboard_screen.dart';
 import '../services/api_service.dart';
+import 'dashboard_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -33,19 +33,27 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (response['statusCode'] == 200) {
-      final usuario = response['data']['usuario'];
+      // Extraemos la información devolviendo un mapa seguro
+      final Map<String, dynamic> datosRespuesta = response['data'] ?? {};
+      final Map<String, dynamic> datosUsuario = Map<String, dynamic>.from(
+        datosRespuesta['usuario'] ?? {},
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('¡Bienvenido ${usuario['nombre']}!')),
+        SnackBar(
+          content: Text('¡Bienvenido ${datosUsuario['nombre'] ?? 'Usuario'}!'),
+        ),
       );
 
-      // REDIRECCIÓN NAVEGACIÓN AL DASHBOARD
+      // Redirección directa al Dashboard
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => DashboardScreen(usuario: usuario)),
+        MaterialPageRoute(
+          builder: (_) => DashboardScreen(usuario: datosUsuario),
+        ),
       );
     } else {
-      final msg = response['data']['error'] ?? 'Error al iniciar sesión';
+      final msg = response['data']?['error'] ?? 'Error al iniciar sesión';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }

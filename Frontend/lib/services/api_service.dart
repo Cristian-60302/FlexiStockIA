@@ -39,6 +39,24 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> obtenerProductos(int idEmpresa) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/productos?id_empresa=$idEmpresa'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando productos'},
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> register(
     String name,
     String correo,
