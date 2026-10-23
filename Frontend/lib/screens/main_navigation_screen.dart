@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'reportes_screen.dart';
+import 'venta_screen.dart';
 import 'escaner_screen.dart';
 import 'crear_producto_screen.dart';
 import 'dashboard_screen.dart';
@@ -22,19 +24,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final List<Widget> screens = [
       DashboardScreen(usuario: widget.usuario),
       CatalogoScreen(usuario: widget.usuario), // Reemplaza el Center de texto
-      const Center(
-        child: Text(
-          'Módulo de Venta Rápida',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+      VentaScreen(usuario: widget.usuario),
       EscanerScreen(usuario: widget.usuario),
-      const Center(
-        child: Text(
-          'Módulo de Reportes e IA',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
+      ReportesScreen(usuario: widget.usuario),
     ];
 
     return Scaffold(
