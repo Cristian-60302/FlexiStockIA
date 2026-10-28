@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   // Ajustado al puerto 3000 de tu Flask
-  static const String baseUrl = 'http://192.168.1.5:3000';
+  static const String baseUrl = 'http://172.41.131.147:3000';
 
   static Future<Map<String, dynamic>> login(
     String correo,
