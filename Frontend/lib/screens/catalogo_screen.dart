@@ -19,7 +19,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
 
-  static const String _baseUrl = 'http://192.168.1.5:3000';
+  static const String _baseUrl = 'http://172.41.131.147:3000';
 
   @override
   void initState() {

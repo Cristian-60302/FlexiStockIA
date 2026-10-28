@@ -22,7 +22,7 @@ class _CrearProductoScreenState extends State<CrearProductoScreen> {
   );
 
   bool _isSubmitting = false;
-  static const String _baseUrl = 'http://192.168.1.5:3000';
+  static const String _baseUrl = 'http://172.41.131.147:3000';
 
   Future<void> _guardarProducto() async {
     if (!_formKey.currentState!.validate()) return;

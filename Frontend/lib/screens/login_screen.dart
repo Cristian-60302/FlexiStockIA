@@ -20,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   // IP de tu PC y puerto 3000 donde corre el backend de tu compañero
-  static const String _baseUrl = 'http://192.168.1.5:3000';
+  static const String _baseUrl = 'http://172.41.131.147:3000';
 
   Future<void> _iniciarSesion() async {
     if (!_formKey.currentState!.validate()) return;
@@ -172,6 +172,35 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                             ),
                           ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        '¿No tienes cuenta?',
+                        style: TextStyle(color: Color(0xFF94A3B8)),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          // Aquí conectaremos la pantalla de registro más adelante
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Pantalla de registro en construcción...',
+                              ),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          'Regístrate',
+                          style: TextStyle(
+                            color: Color(0xFF2563EB),
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

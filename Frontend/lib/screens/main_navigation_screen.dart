@@ -6,6 +6,7 @@ import 'escaner_screen.dart';
 import 'crear_producto_screen.dart';
 import 'dashboard_screen.dart';
 import 'catalogo_screen.dart';
+import 'login_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> usuario;
@@ -37,8 +38,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => Navigator.pop(context),
             tooltip: 'Cerrar sesión',
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ), // Reemplaza con el nombre exacto de tu clase Login
+                (Route<dynamic> route) => false,
+              );
+            },
           ),
         ],
       ),
