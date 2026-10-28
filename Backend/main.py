@@ -724,6 +724,110 @@ def actualizar_producto(id_producto):
 
 
 # =========================================================
+# ENDPOINT 11 - CONSULTAR CATEGORÍAS
+# GET /categorias?id_empresa=1
+# =========================================================
+
+@app.route("/categorias", methods=["GET"])
+def obtener_categorias():
+
+    conn = None
+    cursor = None
+
+    try:
+        id_empresa = request.args.get("id_empresa")
+
+        if not id_empresa:
+            return jsonify({
+                "error": "Debe enviar id_empresa"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                c.id_categoria,
+                c.id_empresa,
+                c.nombre,
+                c.descripcion
+            FROM categorias c
+            WHERE c.id_empresa = %s
+            ORDER BY c.id_categoria
+        """, (id_empresa,))
+
+        categorias = cursor.fetchall()
+
+        return jsonify({
+            "empresa": id_empresa,
+            "cantidad": len(categorias),
+            "categorias": categorias
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error consultando las categorías"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+# =========================================================
+# ENDPOINT 12 - CONSULTAR CATEGORÍA POR ID
+# GET /categorias/<id_categoria>
+# =========================================================
+
+@app.route("/categorias/<int:id_categoria>", methods=["GET"])
+def obtener_categoria(id_categoria):
+
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                c.id_categoria,
+                c.id_empresa,
+                c.nombre,
+                c.descripcion
+            FROM categorias c
+            WHERE c.id_categoria = %s
+        """, (id_categoria,))
+
+        categoria = cursor.fetchone()
+
+        if categoria is None:
+            return jsonify({
+                "error": "Categoría no encontrada"
+            }), 404
+
+        return jsonify({
+            "mensaje": "Categoría consultada correctamente",
+            "categoria": categoria
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error consultando la categoría"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+# =========================================================
 # INICIAR SERVIDOR
 # =========================================================
 
