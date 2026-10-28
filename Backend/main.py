@@ -544,6 +544,7 @@ def registrar_usuario():
             "error": "Error interno al registrar usuario"
         }), 500
 
+
 # =========================================================
 # ENDPOINT 9 - CONSULTAR PRODUCTO POR ID
 # GET /productos/<id_producto>
@@ -599,7 +600,6 @@ def obtener_producto(id_producto):
         if conn:
             conn.close()
 
-
 # =========================================================
 # RUTA PRINCIPAL
 # =========================================================
@@ -617,6 +617,110 @@ def inicio():
             "PUT /inventario/<id>"
         ]
     })
+
+
+# =========================================================
+# ENDPOINT 10 - ACTUALIZAR PRODUCTO
+# PUT /productos/<id_producto>
+# =========================================================
+
+@app.route("/productos/<int:id_producto>", methods=["PUT"])
+def actualizar_producto(id_producto):
+
+    conn = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict) or not data:
+            return jsonify({
+                "error": "Debe enviar un JSON con los campos a actualizar"
+            }), 400
+
+        campos_permitidos = {
+            "nombre",
+            "descripcion",
+            "marca",
+            "id_categoria"
+        }
+
+        if not set(data.keys()).issubset(campos_permitidos):
+            return jsonify({
+                "error": "Hay campos no permitidos para actualizar"
+            }), 400
+
+        if not any(campo in data for campo in campos_permitidos):
+            return jsonify({
+                "error": "Debe enviar al menos un campo para actualizar"
+            }), 400
+
+        if "nombre" in data and (
+            not isinstance(data["nombre"], str)
+            or not data["nombre"].strip()
+        ):
+            return jsonify({
+                "error": "El nombre no puede estar vacío"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            UPDATE productos
+            SET
+                nombre = CASE WHEN %s THEN %s ELSE nombre END,
+                descripcion = CASE WHEN %s THEN %s ELSE descripcion END,
+                marca = CASE WHEN %s THEN %s ELSE marca END,
+                id_categoria = CASE WHEN %s THEN %s ELSE id_categoria END
+            WHERE id_producto = %s
+            RETURNING *
+        """, (
+            "nombre" in data, data.get("nombre"),
+            "descripcion" in data, data.get("descripcion"),
+            "marca" in data, data.get("marca"),
+            "id_categoria" in data, data.get("id_categoria"),
+            id_producto
+        ))
+
+        producto = cursor.fetchone()
+
+        if producto is None:
+            conn.rollback()
+            return jsonify({
+                "error": "Producto no encontrado"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "mensaje": "Producto actualizado correctamente",
+            "producto": producto
+        }), 200
+
+    except psycopg2.errors.ForeignKeyViolation:
+        if conn:
+            conn.rollback()
+
+        return jsonify({
+            "error": "La categoría indicada no existe"
+        }), 400
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+
+        print(e)
+
+        return jsonify({
+            "error": "Error actualizando el producto"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # =========================================================
