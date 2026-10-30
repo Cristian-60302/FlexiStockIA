@@ -1023,6 +1023,205 @@ def obtener_objeto_inventario(id_objeto):
             conn.close()
 
 
+# =========================================================
+# ENDPOINT 16 - REGISTRAR MOVIMIENTO
+# POST /movimientos
+# =========================================================
+
+@app.route("/movimientos", methods=["POST"])
+def registrar_movimiento():
+
+    conn = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return jsonify({
+                "error": "Debe enviar un JSON válido"
+            }), 400
+
+        id_producto = data.get("producto_id")
+        tipo = data.get("tipo")
+        cantidad = data.get("cantidad")
+        motivo = data.get("motivo")
+
+        if id_producto is None or not tipo or cantidad is None:
+            return jsonify({
+                "error": "producto_id, tipo y cantidad son obligatorios"
+            }), 400
+
+        tipos_permitidos = ["ENTRADA", "SALIDA", "AJUSTE"]
+
+        if tipo not in tipos_permitidos:
+            return jsonify({
+                "error": "Tipo inválido. Use ENTRADA, SALIDA o AJUSTE"
+            }), 400
+
+        if not isinstance(cantidad, int) or isinstance(cantidad, bool) or cantidad <= 0:
+            return jsonify({
+                "error": "La cantidad debe ser un entero mayor que cero"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verificar que el producto exista
+        cursor.execute("""
+            SELECT id_producto, nombre
+            FROM productos
+            WHERE id_producto = %s
+        """, (id_producto,))
+
+        producto = cursor.fetchone()
+
+        if producto is None:
+            return jsonify({
+                "error": "El producto indicado no existe"
+            }), 404
+
+        # Registrar el movimiento
+        cursor.execute("""
+            INSERT INTO movimientos
+            (
+                id_producto,
+                tipo,
+                cantidad,
+                motivo
+            )
+            VALUES (%s, %s, %s, %s)
+            RETURNING *
+        """, (
+            id_producto,
+            tipo,
+            cantidad,
+            motivo
+        ))
+
+        movimiento = cursor.fetchone()
+
+        conn.commit()
+
+        return jsonify({
+            "mensaje": "Movimiento registrado correctamente",
+            "producto": producto["nombre"],
+            "movimiento": movimiento
+        }), 201
+
+    except psycopg2.errors.ForeignKeyViolation:
+        if conn:
+            conn.rollback()
+
+        return jsonify({
+            "error": "El producto indicado no existe"
+        }), 400
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+
+        print(e)
+
+        return jsonify({
+            "error": "Error registrando el movimiento"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+# =========================================================
+# ENDPOINT 17 - CONSULTAR MOVIMIENTO
+# GET /movimientos?id_empresa=1
+# =========================================================
+
+@app.route('/movimientos', methods=['GET'])
+def obtener_movimientos():
+    conn = get_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        # Empresa obligatoria para separar los datos
+        id_empresa = request.args.get('id_empresa')
+
+        if not id_empresa:
+            return jsonify({
+                "error": "Debes enviar el id_empresa"
+            }), 400
+
+        try:
+            id_empresa = int(id_empresa)
+        except ValueError:
+            return jsonify({
+                "error": "El id_empresa debe ser un numero entero"
+            }), 400
+
+        # Consulta base
+        query = """
+            SELECT
+                m.*,
+                p.nombre AS nombre_producto
+            FROM movimientos m
+            INNER JOIN productos p
+                ON m.id_producto = p.id_producto
+            WHERE p.id_empresa = %s
+        """
+
+        params = [id_empresa]
+
+        # Filtro opcional por producto
+        id_producto = request.args.get('id_producto')
+
+        if id_producto:
+            try:
+                id_producto = int(id_producto)
+            except ValueError:
+                return jsonify({
+                    "error": "El id_producto debe ser un numero entero"
+                }), 400
+
+            query += " AND m.id_producto = %s"
+            params.append(id_producto)
+
+        # Filtro opcional por tipo
+        tipo = request.args.get('tipo')
+
+        if tipo:
+            tipo = tipo.upper()
+
+            if tipo not in ['ENTRADA', 'SALIDA', 'AJUSTE']:
+                return jsonify({
+                    "error": "Tipo de movimiento no valido"
+                }), 400
+
+            query += " AND m.tipo = %s"
+            params.append(tipo)
+
+        # Ordenar del movimiento mas reciente al mas antiguo
+        query += " ORDER BY m.fecha DESC"
+
+        cur.execute(query, tuple(params))
+
+        movimientos = cur.fetchall()
+
+        return jsonify({
+            "total": len(movimientos),
+            "movimientos": movimientos
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
 
 # =========================================================
 # RUTA PRINCIPAL
