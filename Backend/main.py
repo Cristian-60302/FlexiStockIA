@@ -1316,6 +1316,111 @@ def alertas_stock_bajo():
 
 
 # =========================================================
+# ENDPOINT 19 - RECOMENDACIONES DE COMPRA
+# GET /recomendaciones/compra?id_empresa=1
+#     /recomendaciones/compra?id_empresa=<Id empresa>&stock_minimo=<Valor Minimo>&stock_objetivo=<Valor deseado>
+# =========================================================
+
+@app.route("/recomendaciones/compra", methods=["GET"])
+def recomendaciones_compra():
+
+    conn = None
+    cursor = None
+
+    try:
+        id_empresa = request.args.get("id_empresa")
+        stock_minimo = request.args.get("stock_minimo", 5)
+        stock_objetivo = request.args.get("stock_objetivo", 10)
+
+        if not id_empresa:
+            return jsonify({
+                "error": "Debe enviar id_empresa"
+            }), 400
+
+        try:
+            id_empresa = int(id_empresa)
+            stock_minimo = int(stock_minimo)
+            stock_objetivo = int(stock_objetivo)
+
+            if id_empresa <= 0 or stock_minimo < 0 or stock_objetivo <= stock_minimo:
+                raise ValueError
+
+        except ValueError:
+            return jsonify({
+                "error": "Verifique los parámetros. El stock objetivo debe ser mayor al mínimo"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                p.id_producto,
+                p.nombre AS producto,
+                p.marca,
+
+                COUNT(i.id_objeto) FILTER (
+                    WHERE i.estado = 'Disponible'
+                ) AS unidades_disponibles
+
+            FROM productos p
+
+            LEFT JOIN inventario i
+                ON p.id_producto = i.id_producto
+
+            WHERE p.id_empresa = %s
+
+            GROUP BY
+                p.id_producto,
+                p.nombre,
+                p.marca
+
+            HAVING COUNT(i.id_objeto) FILTER (
+                WHERE i.estado = 'Disponible'
+            ) <= %s
+
+            ORDER BY unidades_disponibles ASC
+        """, (id_empresa, stock_minimo))
+
+        productos = cursor.fetchall()
+
+        recomendaciones = []
+
+        for producto in productos:
+
+            disponibles = producto["unidades_disponibles"]
+
+            recomendaciones.append({
+                "id_producto": producto["id_producto"],
+                "producto": producto["producto"],
+                "marca": producto["marca"],
+                "unidades_disponibles": disponibles,
+                "stock_minimo": stock_minimo,
+                "stock_objetivo": stock_objetivo,
+                "cantidad_recomendada": stock_objetivo - disponibles
+            })
+
+        return jsonify({
+            "empresa": id_empresa,
+            "total_recomendaciones": len(recomendaciones),
+            "recomendaciones": recomendaciones
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error generando recomendaciones de compra"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+# =========================================================
 # RUTA PRINCIPAL
 # =========================================================
 
