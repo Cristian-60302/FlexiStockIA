@@ -600,23 +600,6 @@ def obtener_producto(id_producto):
         if conn:
             conn.close()
 
-# =========================================================
-# RUTA PRINCIPAL
-# =========================================================
-
-@app.route("/", methods=["GET"])
-def inicio():
-
-    return jsonify({
-        "mensaje": "API de Inventarios funcionando",
-        "endpoints": [
-            "POST /login",
-            "GET /productos?id_empresa=1",
-            "POST /inventario",
-            "GET /inventario/resumen?id_empresa=1",
-            "PUT /inventario/<id>"
-        ]
-    })
 
 
 # =========================================================
@@ -826,7 +809,23 @@ def obtener_categoria(id_categoria):
             cursor.close()
         if conn:
             conn.close()
+# =========================================================
+# RUTA PRINCIPAL
+# =========================================================
 
+@app.route("/", methods=["GET"])
+def inicio():
+
+    return jsonify({
+        "mensaje": "API de Inventarios funcionando",
+        "endpoints": [
+            "POST /login",
+            "GET /productos?id_empresa=1",
+            "POST /inventario",
+            "GET /inventario/resumen?id_empresa=1",
+            "PUT /inventario/<id>"
+        ]
+    })
 # =========================================================
 # INICIAR SERVIDOR
 # =========================================================
