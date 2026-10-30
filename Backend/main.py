@@ -809,6 +809,101 @@ def obtener_categoria(id_categoria):
             cursor.close()
         if conn:
             conn.close()
+
+# =========================================================
+# ENDPOINT 13 - ACTUALIZAR CATEGORÍA
+# PUT /categorias/<id_categoria>
+# =========================================================
+
+@app.route("/categorias/<int:id_categoria>", methods=["PUT"])
+def actualizar_categoria(id_categoria):
+
+    conn = None
+    cursor = None
+
+    try:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict) or not data:
+            return jsonify({
+                "error": "Debe enviar un JSON con los campos a actualizar"
+            }), 400
+
+        campos_permitidos = {"nombre", "descripcion"}
+
+        if not set(data.keys()).issubset(campos_permitidos):
+            return jsonify({
+                "error": "Solo puede actualizar nombre y descripcion"
+            }), 400
+
+        if not any(campo in data for campo in campos_permitidos):
+            return jsonify({
+                "error": "Debe enviar al menos un campo para actualizar"
+            }), 400
+
+        if "nombre" in data:
+            if not isinstance(data["nombre"], str) or not data["nombre"].strip():
+                return jsonify({
+                    "error": "El nombre no puede estar vacío"
+                }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            UPDATE categorias
+            SET
+                nombre = CASE
+                    WHEN %s THEN %s
+                    ELSE nombre
+                END,
+                descripcion = CASE
+                    WHEN %s THEN %s
+                    ELSE descripcion
+                END
+            WHERE id_categoria = %s
+            RETURNING id_categoria, id_empresa, nombre, descripcion
+        """, (
+            "nombre" in data,
+            data.get("nombre"),
+            "descripcion" in data,
+            data.get("descripcion"),
+            id_categoria
+        ))
+
+        categoria = cursor.fetchone()
+
+        if categoria is None:
+            conn.rollback()
+
+            return jsonify({
+                "error": "Categoría no encontrada"
+            }), 404
+
+        conn.commit()
+
+        return jsonify({
+            "mensaje": "Categoría actualizada correctamente",
+            "categoria": categoria
+        }), 200
+
+    except Exception as e:
+        if conn:
+            conn.rollback()
+
+        print(e)
+
+        return jsonify({
+            "error": "Error actualizando la categoría"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
 # =========================================================
 # RUTA PRINCIPAL
 # =========================================================
