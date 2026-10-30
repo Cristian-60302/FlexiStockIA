@@ -1224,6 +1224,98 @@ def obtener_movimientos():
 
 
 # =========================================================
+# ENDPOINT 18 - ALERTAS DE STOCK BAJO
+# GET /alertas/stock-bajo?id_empresa=1
+#     /alertas/stock-bajo?id_empresa=<Id empresa>&limite=<Numero del limite>
+# =========================================================
+
+@app.route("/alertas/stock-bajo", methods=["GET"])
+def alertas_stock_bajo():
+
+    conn = None
+    cursor = None
+
+    try:
+        id_empresa = request.args.get("id_empresa")
+        limite = request.args.get("limite", 5)
+
+        if not id_empresa:
+            return jsonify({
+                "error": "Debe enviar id_empresa"
+            }), 400
+
+        try:
+            id_empresa = int(id_empresa)
+            limite = int(limite)
+
+            if id_empresa <= 0 or limite < 0:
+                raise ValueError
+
+        except ValueError:
+            return jsonify({
+                "error": "id_empresa debe ser positivo y limite no puede ser negativo"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                p.id_producto,
+                p.nombre AS producto,
+                p.marca,
+
+                COUNT(i.id_objeto) FILTER (
+                    WHERE i.estado = 'Disponible'
+                ) AS unidades_disponibles,
+
+                COUNT(i.id_objeto) AS total_objetos
+
+            FROM productos p
+
+            LEFT JOIN inventario i
+                ON p.id_producto = i.id_producto
+
+            WHERE p.id_empresa = %s
+
+            GROUP BY
+                p.id_producto,
+                p.nombre,
+                p.marca
+
+            HAVING COUNT(i.id_objeto) FILTER (
+                WHERE i.estado = 'Disponible'
+            ) <= %s
+
+            ORDER BY unidades_disponibles ASC
+        """, (id_empresa, limite))
+
+        alertas = cursor.fetchall()
+
+        return jsonify({
+            "empresa": id_empresa,
+            "limite_stock": limite,
+            "total_alertas": len(alertas),
+            "alertas": alertas
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error consultando las alertas de stock"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+
+
+# =========================================================
 # RUTA PRINCIPAL
 # =========================================================
 
