@@ -964,6 +964,65 @@ def obtener_inventario():
         if conn:
             conn.close()
 
+# =========================================================
+# ENDPOINT 15 - CONSULTAR OBJETO POR ID
+# GET /inventario/<id_objeto>
+# =========================================================
+
+@app.route("/inventario/<int:id_objeto>", methods=["GET"])
+def obtener_objeto_inventario(id_objeto):
+
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                i.id_objeto,
+                i.id_producto,
+                p.nombre AS producto,
+                p.descripcion,
+                p.marca,
+                p.id_empresa,
+                i.codigo,
+                i.estado,
+                i.ubicacion
+            FROM inventario i
+            INNER JOIN productos p
+                ON i.id_producto = p.id_producto
+            WHERE i.id_objeto = %s
+        """, (id_objeto,))
+
+        objeto = cursor.fetchone()
+
+        if objeto is None:
+            return jsonify({
+                "error": "Objeto de inventario no encontrado"
+            }), 404
+
+        return jsonify({
+            "mensaje": "Objeto consultado correctamente",
+            "objeto": objeto
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error consultando el objeto del inventario"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+
 
 # =========================================================
 # RUTA PRINCIPAL
