@@ -905,6 +905,67 @@ def actualizar_categoria(id_categoria):
             conn.close()
 
 # =========================================================
+# ENDPOINT 14 - CONSULTAR INVENTARIO
+# GET /inventario?id_empresa=1
+# =========================================================
+
+@app.route("/inventario", methods=["GET"])
+def obtener_inventario():
+
+    conn = None
+    cursor = None
+
+    try:
+        id_empresa = request.args.get("id_empresa")
+
+        if not id_empresa:
+            return jsonify({
+                "error": "Debe enviar id_empresa"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute("""
+            SELECT
+                i.id_objeto,
+                i.id_producto,
+                p.nombre AS producto,
+                p.marca,
+                i.codigo,
+                i.estado,
+                i.ubicacion
+            FROM inventario i
+            INNER JOIN productos p
+                ON i.id_producto = p.id_producto
+            WHERE p.id_empresa = %s
+            ORDER BY i.id_objeto
+        """, (id_empresa,))
+
+        objetos = cursor.fetchall()
+
+        return jsonify({
+            "empresa": id_empresa,
+            "cantidad": len(objetos),
+            "inventario": objetos
+        }), 200
+
+    except Exception as e:
+        print(e)
+
+        return jsonify({
+            "error": "Error consultando el inventario"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+
+# =========================================================
 # RUTA PRINCIPAL
 # =========================================================
 
