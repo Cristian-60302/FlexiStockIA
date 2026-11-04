@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:frontend/config/constants.dart';
 
 import 'register_screen.dart';
 import 'main_navigation_screen.dart';
@@ -21,7 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   // IP de tu PC y puerto 3000 donde corre el backend de tu compañero
-  static const String _baseUrl = 'http://172.41.144.177:3000';
+  static const String _baseUrl = ApiConfig.baseUrl;
 
   Future<void> _iniciarSesion() async {
     if (!_formKey.currentState!.validate()) return;

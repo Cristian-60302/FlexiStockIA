@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:frontend/config/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -19,7 +20,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
 
   String _estadoSeleccionado = 'Disponible';
   bool _isSubmitting = false;
-  static const String _baseUrl = 'http://172.41.144.177:3000';
+  static const String _baseUrl = ApiConfig.baseUrl;
 
   Future<void> _agregarUnidadAlInventario() async {
     if (!_formKey.currentState!.validate()) return;

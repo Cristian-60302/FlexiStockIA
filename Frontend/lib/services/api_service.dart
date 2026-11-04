@@ -1,11 +1,12 @@
 import 'dart:convert';
 
+import 'package:frontend/config/constants.dart';
 import 'package:flutter/foundation.dart'; // Requerido para kIsWeb
 import 'package:http/http.dart' as http;
 
 class ApiService {
   // Ajustado al puerto 3000 de tu Flask
-  static const String baseUrl = 'http://172.41.144.177:3000';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static Future<Map<String, dynamic>> login(
     String correo,

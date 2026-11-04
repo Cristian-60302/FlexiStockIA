@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'detalle_producto_screen.dart';
 
+import 'package:frontend/config/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -19,7 +20,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
 
-  static const String _baseUrl = 'http://172.41.144.177:3000';
+  static const String _baseUrl = ApiConfig.baseUrl;
 
   @override
   void initState() {
