@@ -21,7 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
 
   // IP de tu PC y puerto 3000 donde corre el backend de tu compañero
-  static const String _baseUrl = 'http://172.41.131.147:3000';
+  static const String _baseUrl = 'http://172.41.144.177:3000';
 
   Future<void> _iniciarSesion() async {
     if (!_formKey.currentState!.validate()) return;
