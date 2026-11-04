@@ -52,6 +52,65 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> obtenerCategorias(int idEmpresa) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/categorias?id_empresa=$idEmpresa'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando categorías'},
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> resumenInventario(int idEmpresa) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/inventario/resumen?id_empresa=$idEmpresa'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando resumen del inventario'},
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> alertasStockBajo(
+    int idEmpresa, {
+    int limite = 5,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '$baseUrl/alertas/stock-bajo?id_empresa=$idEmpresa&limite=$limite',
+        ),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando alertas de stock'},
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> register(
     String name,
     String correo,

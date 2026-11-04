@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'reportes_screen.dart';
 import 'venta_screen.dart';
-import 'escaner_screen.dart';
+import 'scanner_screen.dart';
 import 'crear_producto_screen.dart';
 import 'dashboard_screen.dart';
 import 'catalogo_screen.dart';
@@ -26,7 +26,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       DashboardScreen(usuario: widget.usuario),
       CatalogoScreen(usuario: widget.usuario), // Reemplaza el Center de texto
       VentaScreen(usuario: widget.usuario),
-      EscanerScreen(usuario: widget.usuario),
+      ScannerScreen(usuario: widget.usuario),
       ReportesScreen(usuario: widget.usuario),
     ];
 
