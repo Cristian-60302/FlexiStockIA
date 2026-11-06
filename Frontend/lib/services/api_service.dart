@@ -138,4 +138,49 @@ class ApiService {
       };
     }
   }
+  // ==============================================
+  // GESTIÓN DE INVENTARIO FÍSICO (ESCANEO)
+  // ==============================================
+
+  static Future<Map<String, dynamic>> obtenerInventario(int idEmpresa) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/inventario?id_empresa=$idEmpresa'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando el inventario'},
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> actualizarObjeto(
+    int idObjeto,
+    String estado,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/inventario/$idObjeto'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'estado': estado,
+        }), // Puede ser 'Vendido', 'Disponible', 'Dañado'
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error actualizando el objeto'},
+      };
+    }
+  }
 }
