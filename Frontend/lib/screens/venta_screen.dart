@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/inventario_notifier.dart';
 
 class VentaScreen extends StatefulWidget {
   final Map<String, dynamic> usuario;
@@ -24,6 +25,13 @@ class _VentaScreenState extends State<VentaScreen> {
   void initState() {
     super.initState();
     _cargarDisponibles();
+    inventarioNotifier.addListener(_cargarDisponibles);
+  }
+
+  @override
+  void dispose() {
+    inventarioNotifier.removeListener(_cargarDisponibles);
+    super.dispose();
   }
 
   Future<void> _cargarDisponibles() async {
@@ -207,7 +215,7 @@ class _VentaScreenState extends State<VentaScreen> {
         backgroundColor: Colors.green,
       ),
     );
-
+    inventarioNotifier.notificarCambio();
     _cargarDisponibles();
   }
 

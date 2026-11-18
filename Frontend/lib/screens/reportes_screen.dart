@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/inventario_notifier.dart';
 
 class ReportesScreen extends StatefulWidget {
   final Map<String, dynamic> usuario;
@@ -45,6 +46,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
   void initState() {
     super.initState();
     _cargarDatos();
+    inventarioNotifier.addListener(_cargarDatos);
+  }
+
+  @override
+  void dispose() {
+    inventarioNotifier.removeListener(_cargarDatos);
+    super.dispose();
   }
 
   Future<void> _cargarDatos() async {
@@ -229,6 +237,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       content: Text('Unidad actualizada correctamente'),
                     ),
                   );
+                  inventarioNotifier.notificarCambio();
                   _cargarDatos();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -400,6 +409,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                       content: Text('Movimiento registrado correctamente'),
                     ),
                   );
+                  inventarioNotifier.notificarCambio();
                   _cargarDatos();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(

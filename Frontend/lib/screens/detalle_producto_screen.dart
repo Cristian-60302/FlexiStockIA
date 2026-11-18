@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/inventario_notifier.dart';
 
 class DetalleProductoScreen extends StatefulWidget {
   final Map<String, dynamic> producto;
@@ -25,12 +26,14 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
     super.initState();
     _productoActual = Map<String, dynamic>.from(widget.producto);
     _cargarDetalleProducto();
+    inventarioNotifier.addListener(_cargarDetalleProducto);
   }
 
   @override
   void dispose() {
     _codigoController.dispose();
     _ubicacionController.dispose();
+    inventarioNotifier.removeListener(_cargarDetalleProducto);
     super.dispose();
   }
 
@@ -88,6 +91,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
       );
       _codigoController.clear();
       _ubicacionController.clear();
+      inventarioNotifier.notificarCambio();
       _cargarDetalleProducto();
     } else {
       _mostrarError(res['data']['error'] ?? 'Error al agregar unidad');
