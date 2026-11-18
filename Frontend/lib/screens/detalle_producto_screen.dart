@@ -1,8 +1,5 @@
-import 'dart:convert';
-
-import 'package:frontend/config/constants.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:frontend/services/api_service.dart';
 
 class DetalleProductoScreen extends StatefulWidget {
   final Map<String, dynamic> producto;
@@ -18,54 +15,82 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
   final TextEditingController _codigoController = TextEditingController();
   final TextEditingController _ubicacionController = TextEditingController();
 
+  late Map<String, dynamic> _productoActual;
   String _estadoSeleccionado = 'Disponible';
+  bool _isLoadingDetalle = true;
   bool _isSubmitting = false;
-  static const String _baseUrl = ApiConfig.baseUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _productoActual = Map<String, dynamic>.from(widget.producto);
+    _cargarDetalleProducto();
+  }
+
+  @override
+  void dispose() {
+    _codigoController.dispose();
+    _ubicacionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarDetalleProducto() async {
+    final int? idProducto = int.tryParse(
+      _productoActual['id_producto']?.toString() ?? '',
+    );
+    if (idProducto == null) {
+      setState(() => _isLoadingDetalle = false);
+      return;
+    }
+
+    final res = await ApiService.obtenerProductoPorId(idProducto: idProducto);
+    if (!mounted) return;
+
+    setState(() {
+      if (res['statusCode'] == 200 && res['data']['producto'] != null) {
+        _productoActual = Map<String, dynamic>.from(res['data']['producto']);
+      }
+      _isLoadingDetalle = false;
+    });
+  }
 
   Future<void> _agregarUnidadAlInventario() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() {
-      _isSubmitting = true;
-    });
+    final int? idProducto = int.tryParse(
+      _productoActual['id_producto']?.toString() ?? '',
+    );
+    if (idProducto == null) {
+      _mostrarError('ID de producto inválido.');
+      return;
+    }
 
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$_baseUrl/inventario'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'id_producto': widget.producto['id_producto'],
-              'codigo': _codigoController.text.trim(),
-              'estado': _estadoSeleccionado,
-              'ubicacion': _ubicacionController.text.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
+    setState(() => _isSubmitting = true);
 
-      final data = jsonDecode(response.body);
+    final String ubicacion = _ubicacionController.text.trim();
+    final res = await ApiService.registrarInventario(
+      idProducto: idProducto,
+      codigo: _codigoController.text.trim(),
+      estado: _estadoSeleccionado,
+      ubicacion: ubicacion.isEmpty ? null : ubicacion,
+    );
 
-      if (response.statusCode == 201) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unidad agregada al inventario'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        _codigoController.clear();
-        _ubicacionController.clear();
-      } else {
-        _mostrarError(data['error'] ?? 'Error al agregar unidad');
-      }
-    } catch (e) {
-      _mostrarError('Error de conexión con el servidor.');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
+    if (!mounted) return;
+
+    setState(() => _isSubmitting = false);
+
+    if (res['statusCode'] == 201) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unidad agregada al inventario'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _codigoController.clear();
+      _ubicacionController.clear();
+      _cargarDetalleProducto();
+    } else {
+      _mostrarError(res['data']['error'] ?? 'Error al agregar unidad');
     }
   }
 
@@ -78,8 +103,11 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final nombre = widget.producto['nombre'] ?? 'Producto';
-    final marca = widget.producto['marca'] ?? 'Sin marca';
+    final nombre = _productoActual['nombre'] ?? 'Producto';
+    final marca = _productoActual['marca'] ?? 'Sin marca';
+    final categoria = _productoActual['categoria'] ?? 'Sin categoría';
+    final descripcion = _productoActual['descripcion']?.toString() ?? '';
+    final unidadesDisponibles = _productoActual['unidades_disponibles'];
 
     return Scaffold(
       appBar: AppBar(
@@ -92,7 +120,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Info del producto
+            // Ficha del producto (GET /productos/<id_producto>)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -105,18 +133,52 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Marca: $marca',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Marca: $marca • Cat: $categoria',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      if (_isLoadingDetalle)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else if (unidadesDisponibles != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.greenAccent.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$unidadesDisponibles disp.',
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (descripcion.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      descripcion,
+                      style: const TextStyle(color: Color(0xFFCBD5E1)),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.producto['descripcion'] ?? '',
-                    style: const TextStyle(color: Color(0xFFCBD5E1)),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -132,7 +194,7 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Formulario de inventario
+            // Formulario de inventario (POST /inventario)
             Form(
               key: _formKey,
               child: Column(
@@ -155,7 +217,9 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       ),
                     ),
                     validator: (value) =>
-                        value!.isEmpty ? 'Ingresa un código' : null,
+                        (value == null || value.trim().isEmpty)
+                        ? 'Ingresa un código'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -194,9 +258,9 @@ class _DetalleProductoScreenState extends State<DetalleProductoScreen> {
                       );
                     }).toList(),
                     onChanged: (value) {
-                      setState(() {
-                        _estadoSeleccionado = value!;
-                      });
+                      if (value != null) {
+                        setState(() => _estadoSeleccionado = value);
+                      }
                     },
                   ),
                   const SizedBox(height: 32),

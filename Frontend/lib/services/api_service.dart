@@ -492,4 +492,33 @@ class ApiService {
       };
     }
   }
+
+  static Future<Map<String, dynamic>> registrarInventario({
+    required int idProducto,
+    required String codigo,
+    String estado = 'Disponible',
+    String? ubicacion,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/inventario'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'id_producto': idProducto,
+          'codigo': codigo,
+          'estado': estado,
+          'ubicacion': ubicacion,
+        }),
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error registrando unidad en inventario'},
+      };
+    }
+  }
 }
