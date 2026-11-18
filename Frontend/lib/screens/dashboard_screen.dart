@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'scanner_screen.dart'; // Asegúrate de que la ruta coincida con la tuya
 import '../services/api_service.dart'; // Asegúrate de que la ruta coincida con la tuya
 
 class DashboardScreen extends StatefulWidget {
@@ -101,7 +101,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: () {},
+                            onPressed: () async {
+                              // 1. Abrimos la cámara y esperamos el código
+                              final codigoEscaneado = await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => const ScannerScreen()),
+                              );
+
+                              // 2. Si escaneó algo, procesamos la venta
+                              if (codigoEscaneado != null) {
+                                if (!context.mounted) return;
+                                
+                                // Mostramos un mensaje de carga visual
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Buscando producto...')),
+                                );
+
+                                final int idEmpresa = widget.usuario?['id_empresa'] ?? 1;
+
+                                // Traemos el inventario para buscar a qué id_objeto pertenece ese código
+                                final resInventario = await ApiService.obtenerInventario(idEmpresa);
+
+                                if (resInventario['statusCode'] == 200) {
+                                  final inventario = resInventario['data']['inventario'] as List<dynamic>? ?? [];
+                                  
+                                  // Buscamos el objeto que coincida con el código de barras
+                                  final objetoEscaneado = inventario.where((item) => item['codigo'] == codigoEscaneado).firstOrNull;
+
+                                  if (!context.mounted) return;
+
+                                  if (objetoEscaneado != null) {
+                                    if (objetoEscaneado['estado'] == 'Vendido') {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Este producto ya fue vendido anteriormente.')),
+                                      );
+                                    } else {
+                                      // 3. Lo encontramos y está disponible, lo actualizamos a "Vendido"
+                                      final resUpdate = await ApiService.actualizarObjeto(objetoEscaneado['id_objeto'], 'Vendido');
+                                      
+                                      if (resUpdate['statusCode'] == 200) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('¡Venta registrada! ${objetoEscaneado['producto']}')),
+                                        );
+                                        // Recargamos el dashboard para actualizar números
+                                        _cargarDatos(); 
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Error al registrar la venta.')),
+                                        );
+                                      }
+                                    }
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Código no encontrado en el inventario.')),
+                                    );
+                                  }
+                                }
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2563EB),
                               padding: const EdgeInsets.symmetric(vertical: 14),
