@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'reportes_screen.dart';
 import 'venta_screen.dart';
 import 'scanner_screen.dart';
-import 'crear_producto_screen.dart';
 import 'dashboard_screen.dart';
 import 'catalogo_screen.dart';
 import 'login_screen.dart';
@@ -24,7 +23,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Widget build(BuildContext context) {
     final List<Widget> screens = [
       DashboardScreen(usuario: widget.usuario),
-      CatalogoScreen(usuario: widget.usuario), // Reemplaza el Center de texto
+      CatalogoScreen(usuario: widget.usuario),
       VentaScreen(usuario: widget.usuario),
       ScannerScreen(usuario: widget.usuario),
       ReportesScreen(usuario: widget.usuario),
@@ -42,36 +41,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const LoginScreen(),
-                ), // Reemplaza con el nombre exacto de tu clase Login
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (Route<dynamic> route) => false,
               );
             },
           ),
         ],
       ),
-      floatingActionButton: _currentIndex == 1
-          ? FloatingActionButton.extended(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        CrearProductoScreen(usuario: widget.usuario),
-                  ),
-                );
-
-                // Si se creó el producto exitosamente, podrías recargar la vista actual aquí
-                if (result == true) {
-                  setState(() {});
-                }
-              },
-              backgroundColor: const Color(0xFF2563EB),
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Nuevo', style: TextStyle(color: Colors.white)),
-            )
-          : null,
       body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
