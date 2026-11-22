@@ -1423,6 +1423,241 @@ def recomendaciones_compra():
 
 
 # =========================================================
+# ENDPOINT 20 - RESUMEN DE ANALISIS DE VENTAS
+# GET /analisis-ventas/resumen?id_empresa=1
+# GET /analisis-ventas/resumen?id_empresa=1&desde=2026-11-01&hasta=2026-11-30
+# =========================================================
+
+@app.route("/analisis-ventas/resumen", methods=["GET"])
+def analisis_ventas_resumen():
+
+    conn = None
+    cursor = None
+
+    try:
+
+        id_empresa = request.args.get("id_empresa")
+        desde = request.args.get("desde")
+        hasta = request.args.get("hasta")
+
+        # Validar empresa
+        if not id_empresa:
+            return jsonify({
+                "error": "Debe enviar id_empresa"
+            }), 400
+
+        try:
+            id_empresa = int(id_empresa)
+
+            if id_empresa <= 0:
+                raise ValueError
+
+        except ValueError:
+            return jsonify({
+                "error": "id_empresa debe ser un entero positivo"
+            }), 400
+
+        # Validar fechas
+        from datetime import date
+
+        try:
+            if desde:
+                desde = date.fromisoformat(desde)
+
+            if hasta:
+                hasta = date.fromisoformat(hasta)
+
+            if desde and hasta and desde > hasta:
+                return jsonify({
+                    "error": "La fecha inicial no puede ser posterior a la fecha final"
+                }), 400
+
+        except ValueError:
+            return jsonify({
+                "error": "Las fechas deben tener formato YYYY-MM-DD"
+            }), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        # -------------------------------------------------
+        # CONSULTA BASE: MOVIMIENTOS DE TIPO SALIDA
+        # -------------------------------------------------
+
+        condiciones = """
+            WHERE p.id_empresa = %s
+              AND UPPER(TRIM(m.tipo)) = 'SALIDA'
+        """
+
+        parametros = [id_empresa]
+
+        if desde:
+            condiciones += " AND m.fecha >= %s"
+            parametros.append(desde)
+
+        if hasta:
+            condiciones += " AND m.fecha < (%s::date + INTERVAL '1 day')"
+            parametros.append(hasta)
+
+        # -------------------------------------------------
+        # INDICADORES GENERALES
+        # -------------------------------------------------
+
+        cursor.execute(f"""
+            SELECT
+                COALESCE(SUM(m.cantidad), 0) AS unidades_vendidas,
+
+                COUNT(m.id_movimiento) AS total_movimientos,
+
+                COUNT(DISTINCT m.id_producto) AS productos_vendidos,
+
+                MAX(m.fecha) AS ultima_venta
+
+            FROM movimientos m
+
+            INNER JOIN productos p
+                ON m.id_producto = p.id_producto
+
+            {condiciones}
+        """, tuple(parametros))
+
+        resumen = cursor.fetchone()
+
+        # -------------------------------------------------
+        # PRODUCTO MAS VENDIDO
+        # -------------------------------------------------
+
+        cursor.execute(f"""
+            SELECT
+                p.id_producto,
+                p.nombre AS producto,
+                SUM(m.cantidad) AS unidades_vendidas
+
+            FROM movimientos m
+
+            INNER JOIN productos p
+                ON m.id_producto = p.id_producto
+
+            {condiciones}
+
+            GROUP BY
+                p.id_producto,
+                p.nombre
+
+            ORDER BY unidades_vendidas DESC,
+                     p.nombre ASC
+
+            LIMIT 1
+        """, tuple(parametros))
+
+        producto_destacado = cursor.fetchone()
+
+        # -------------------------------------------------
+        # CATEGORIA CON MAYOR MOVIMIENTO
+        # -------------------------------------------------
+
+        cursor.execute(f"""
+            SELECT
+                c.id_categoria,
+                c.nombre AS categoria,
+                SUM(m.cantidad) AS unidades_vendidas
+
+            FROM movimientos m
+
+            INNER JOIN productos p
+                ON m.id_producto = p.id_producto
+
+            INNER JOIN categorias c
+                ON p.id_categoria = c.id_categoria
+
+            {condiciones}
+
+            GROUP BY
+                c.id_categoria,
+                c.nombre
+
+            ORDER BY unidades_vendidas DESC,
+                     c.nombre ASC
+
+            LIMIT 1
+        """, tuple(parametros))
+
+        categoria_destacada = cursor.fetchone()
+
+        # -------------------------------------------------
+        # EVOLUCION DIARIA DE VENTAS
+        # -------------------------------------------------
+
+        cursor.execute(f"""
+            SELECT
+                DATE(m.fecha) AS fecha,
+                SUM(m.cantidad) AS unidades_vendidas,
+                COUNT(m.id_movimiento) AS movimientos
+
+            FROM movimientos m
+
+            INNER JOIN productos p
+                ON m.id_producto = p.id_producto
+
+            {condiciones}
+
+            GROUP BY DATE(m.fecha)
+
+            ORDER BY fecha ASC
+        """, tuple(parametros))
+
+        evolucion = cursor.fetchall()
+
+        # -------------------------------------------------
+        # RESPUESTA
+        # -------------------------------------------------
+
+        return jsonify({
+
+            "mensaje": "Análisis de ventas generado correctamente",
+
+            "empresa": id_empresa,
+
+            "periodo": {
+                "desde": desde.isoformat() if desde else None,
+                "hasta": hasta.isoformat() if hasta else None
+            },
+
+            "indicadores": {
+                "unidades_vendidas": resumen["unidades_vendidas"],
+                "total_movimientos": resumen["total_movimientos"],
+                "productos_vendidos": resumen["productos_vendidos"],
+                "ultima_venta": (
+                    resumen["ultima_venta"].isoformat()
+                    if resumen["ultima_venta"] else None
+                )
+            },
+
+            "producto_destacado": producto_destacado,
+
+            "categoria_destacada": categoria_destacada,
+
+            "evolucion_diaria": evolucion
+
+        }), 200
+
+    except Exception as e:
+
+        print("Error en análisis de ventas:", e)
+
+        return jsonify({
+            "error": "Error generando el análisis de ventas"
+        }), 500
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+# =========================================================
 # RUTA PRINCIPAL
 # =========================================================
 
@@ -1431,13 +1666,7 @@ def inicio():
 
     return jsonify({
         "mensaje": "API de Inventarios funcionando",
-        "endpoints": [
-            "POST /login",
-            "GET /productos?id_empresa=1",
-            "POST /inventario",
-            "GET /inventario/resumen?id_empresa=1",
-            "PUT /inventario/<id>"
-        ]
+        
     })
 # =========================================================
 # INICIAR SERVIDOR
