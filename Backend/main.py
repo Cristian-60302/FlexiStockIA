@@ -1657,6 +1657,178 @@ def analisis_ventas_resumen():
         if conn:
             conn.close()
 
+# =====================================================
+# ENDPOINT 21: RANKING DE PRODUCTOS VENDIDOS
+# =====================================================
+
+@app.route('/analisis-ventas/productos', methods=['GET'])
+def ranking_productos_vendidos():
+    from datetime import date
+
+    conn = None
+    cursor = None
+
+    try:
+        # 1. Obtener y validar parámetros
+        id_empresa = request.args.get('id_empresa', type=int)
+        desde_texto = request.args.get('desde')
+        hasta_texto = request.args.get('hasta')
+        limite = request.args.get('limite', default=10, type=int)
+
+        if id_empresa is None or id_empresa <= 0:
+            return jsonify({
+                "error": "id_empresa debe ser un entero positivo"
+            }), 400
+
+        if limite is None or limite <= 0 or limite > 100:
+            return jsonify({
+                "error": "limite debe ser un entero entre 1 y 100"
+            }), 400
+
+        # 2. Validar fechas
+        try:
+            desde = date.fromisoformat(desde_texto) if desde_texto else None
+            hasta = date.fromisoformat(hasta_texto) if hasta_texto else None
+        except ValueError:
+            return jsonify({
+                "error": "Las fechas deben tener formato AAAA-MM-DD"
+            }), 400
+
+        if desde and hasta and desde > hasta:
+            return jsonify({
+                "error": "La fecha inicial no puede ser posterior a la fecha final"
+            }), 400
+
+        # 3. Construir filtros
+        condiciones = """
+            WHERE p.id_empresa = %s
+              AND UPPER(TRIM(m.tipo)) = 'SALIDA'
+        """
+
+        parametros = [id_empresa]
+
+        if desde:
+            condiciones += " AND m.fecha >= %s"
+            parametros.append(desde)
+
+        if hasta:
+            condiciones += " AND m.fecha < (%s::date + INTERVAL '1 day')"
+            parametros.append(hasta)
+
+        # 4. Consultar y agrupar las ventas por producto
+        consulta = f"""
+            WITH ventas_producto AS (
+                SELECT
+                    p.id_producto,
+                    p.nombre AS producto,
+                    c.id_categoria,
+                    c.nombre AS categoria,
+                    SUM(m.cantidad)::INTEGER AS unidades_vendidas,
+                    COUNT(m.id_movimiento)::INTEGER AS total_movimientos
+
+                FROM movimientos m
+                INNER JOIN productos p
+                    ON m.id_producto = p.id_producto
+                LEFT JOIN categorias c
+                    ON p.id_categoria = c.id_categoria
+
+                {condiciones}
+
+                GROUP BY
+                    p.id_producto,
+                    p.nombre,
+                    c.id_categoria,
+                    c.nombre
+            )
+
+            SELECT
+                id_producto,
+                producto,
+                id_categoria,
+                categoria,
+                unidades_vendidas,
+                total_movimientos,
+
+                COUNT(*) OVER () AS total_productos,
+                SUM(unidades_vendidas) OVER () AS total_unidades_vendidas,
+
+                ROUND(
+                    unidades_vendidas::NUMERIC * 100 /
+                    NULLIF(SUM(unidades_vendidas) OVER (), 0),
+                    2
+                )::FLOAT AS porcentaje_participacion
+
+            FROM ventas_producto
+
+            ORDER BY
+                unidades_vendidas DESC,
+                producto ASC
+
+            LIMIT %s
+        """
+
+        parametros.append(limite)
+
+        # 5. Ejecutar consulta
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute(consulta, parametros)
+        resultados = cursor.fetchall()
+
+        # 6. Construir ranking
+        ranking = []
+
+        for posicion, fila in enumerate(resultados, start=1):
+            ranking.append({
+                "posicion": posicion,
+                "id_producto": fila["id_producto"],
+                "producto": fila["producto"],
+                "id_categoria": fila["id_categoria"],
+                "categoria": fila["categoria"],
+                "unidades_vendidas": fila["unidades_vendidas"],
+                "total_movimientos": fila["total_movimientos"],
+                "porcentaje_participacion": fila["porcentaje_participacion"]
+            })
+
+        # 7. Obtener indicadores generales
+        if resultados:
+            total_productos = resultados[0]["total_productos"]
+            total_unidades = resultados[0]["total_unidades_vendidas"]
+        else:
+            total_productos = 0
+            total_unidades = 0
+
+        return jsonify({
+            "mensaje": "Ranking de productos generado correctamente",
+            "empresa": id_empresa,
+            "periodo": {
+                "desde": desde.isoformat() if desde else None,
+                "hasta": hasta.isoformat() if hasta else None
+            },
+            "resumen": {
+                "total_productos": total_productos,
+                "total_unidades_vendidas": total_unidades,
+                "productos_mostrados": len(ranking)
+            },
+            "ranking": ranking
+        }), 200
+
+    except Exception as e:
+        print("Error en ranking de productos:", str(e))
+
+        return jsonify({
+            "error": "Error al generar el ranking de productos"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
+
 # =========================================================
 # RUTA PRINCIPAL
 # =========================================================
