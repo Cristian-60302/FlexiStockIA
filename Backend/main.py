@@ -1828,6 +1828,171 @@ def ranking_productos_vendidos():
         if conn:
             conn.close()
 
+# =====================================================
+# ENDPOINT 22: ANALISIS DE VENTAS POR CATEGORIAS
+# =====================================================
+
+@app.route('/analisis-ventas/categorias', methods=['GET'])
+def analisis_ventas_categorias():
+    from datetime import date
+
+    conn = None
+    cursor = None
+
+    try:
+        # 1. Obtener y validar parametros
+        id_empresa = request.args.get('id_empresa', type=int)
+        desde_texto = request.args.get('desde')
+        hasta_texto = request.args.get('hasta')
+
+        if id_empresa is None or id_empresa <= 0:
+            return jsonify({
+                "error": "id_empresa debe ser un entero positivo"
+            }), 400
+
+        # 2. Validar fechas
+        try:
+            desde = date.fromisoformat(desde_texto) if desde_texto else None
+            hasta = date.fromisoformat(hasta_texto) if hasta_texto else None
+        except ValueError:
+            return jsonify({
+                "error": "Las fechas deben tener formato AAAA-MM-DD"
+            }), 400
+
+        if desde and hasta and desde > hasta:
+            return jsonify({
+                "error": "La fecha inicial no puede ser posterior a la fecha final"
+            }), 400
+
+        # 3. Construir filtros
+        condiciones = """
+            WHERE p.id_empresa = %s
+              AND UPPER(TRIM(m.tipo)) = 'SALIDA'
+        """
+
+        parametros = [id_empresa]
+
+        if desde:
+            condiciones += " AND m.fecha >= %s"
+            parametros.append(desde)
+
+        if hasta:
+            condiciones += " AND m.fecha < (%s::date + INTERVAL '1 day')"
+            parametros.append(hasta)
+
+        # 4. Consultar ventas agrupadas por categoria
+        consulta = f"""
+            WITH ventas_categoria AS (
+                SELECT
+                    c.id_categoria,
+                    c.nombre AS categoria,
+                    SUM(m.cantidad)::INTEGER AS unidades_vendidas,
+                    COUNT(m.id_movimiento)::INTEGER AS total_movimientos,
+                    COUNT(DISTINCT p.id_producto)::INTEGER AS productos_diferentes
+
+                FROM movimientos m
+
+                INNER JOIN productos p
+                    ON m.id_producto = p.id_producto
+
+                INNER JOIN categorias c
+                    ON p.id_categoria = c.id_categoria
+
+                {condiciones}
+
+                GROUP BY
+                    c.id_categoria,
+                    c.nombre
+            )
+
+            SELECT
+                id_categoria,
+                categoria,
+                unidades_vendidas,
+                total_movimientos,
+                productos_diferentes,
+
+                COUNT(*) OVER () AS total_categorias,
+                SUM(unidades_vendidas) OVER () AS total_unidades_vendidas,
+
+                ROUND(
+                    unidades_vendidas::NUMERIC * 100 /
+                    NULLIF(SUM(unidades_vendidas) OVER (), 0),
+                    2
+                )::FLOAT AS porcentaje_participacion
+
+            FROM ventas_categoria
+
+            ORDER BY
+                unidades_vendidas DESC,
+                categoria ASC
+        """
+
+        # 5. Ejecutar consulta
+        conn = get_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+
+        cursor.execute(consulta, parametros)
+        resultados = cursor.fetchall()
+
+        # 6. Construir ranking
+        ranking = []
+
+        for posicion, fila in enumerate(resultados, start=1):
+            ranking.append({
+                "posicion": posicion,
+                "id_categoria": fila["id_categoria"],
+                "categoria": fila["categoria"],
+                "unidades_vendidas": fila["unidades_vendidas"],
+                "total_movimientos": fila["total_movimientos"],
+                "productos_diferentes": fila["productos_diferentes"],
+                "porcentaje_participacion": fila["porcentaje_participacion"]
+            })
+
+        # 7. Calcular resumen
+        if resultados:
+            total_categorias = resultados[0]["total_categorias"]
+            total_unidades = resultados[0]["total_unidades_vendidas"]
+            categoria_destacada = {
+                "id_categoria": ranking[0]["id_categoria"],
+                "categoria": ranking[0]["categoria"],
+                "unidades_vendidas": ranking[0]["unidades_vendidas"]
+            }
+        else:
+            total_categorias = 0
+            total_unidades = 0
+            categoria_destacada = None
+
+        # 8. Respuesta
+        return jsonify({
+            "mensaje": "Análisis de ventas por categorías generado correctamente",
+            "empresa": id_empresa,
+            "periodo": {
+                "desde": desde.isoformat() if desde else None,
+                "hasta": hasta.isoformat() if hasta else None
+            },
+            "resumen": {
+                "total_categorias": total_categorias,
+                "total_unidades_vendidas": total_unidades
+            },
+            "categoria_destacada": categoria_destacada,
+            "ranking": ranking
+        }), 200
+
+    except Exception as e:
+        print("Error en análisis de ventas por categorías:", str(e))
+
+        return jsonify({
+            "error": "Error al generar el análisis de ventas por categorías"
+        }), 500
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if conn:
+            conn.close()
+
 
 # =========================================================
 # RUTA PRINCIPAL
