@@ -641,4 +641,27 @@ class ApiService {
       };
     }
   }
+
+  static Future<Map<String, dynamic>> productosMasVendidos(
+    int idEmpresa, {
+    int limite = 10,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '${ApiConfig.baseUrl}/analisis-ventas/productos?id_empresa=$idEmpresa&limite=$limite',
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      final data = response.body.isNotEmpty
+          ? jsonDecode(response.body)
+          : <String, dynamic>{};
+
+      return {'statusCode': response.statusCode, 'data': data};
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error de conexión con el servidor'},
+      };
+    }
+  }
 }

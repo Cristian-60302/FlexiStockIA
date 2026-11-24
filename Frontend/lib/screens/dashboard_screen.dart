@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'scanner_screen.dart'; // Asegúrate de que la ruta coincida con la tuya
-import '../services/api_service.dart'; // Asegúrate de que la ruta coincida con la tuya
+import 'scanner_screen.dart';
+import '../services/api_service.dart';
+import '../services/inventario_notifier.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? usuario;
@@ -16,46 +17,82 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   List<dynamic> _alertas = [];
   int _totalUnidades = 0;
+  int _totalProductos = 0;
+  int _ventasHoy = 0;
 
   @override
   void initState() {
     super.initState();
     _cargarDatos();
+    inventarioNotifier.addListener(_cargarDatos);
+  }
+
+  @override
+  void dispose() {
+    inventarioNotifier.removeListener(_cargarDatos);
+    super.dispose();
+  }
+
+  String _fechaHoyIso() {
+    final ahora = DateTime.now();
+    final anio = ahora.year.toString().padLeft(4, '0');
+    final mes = ahora.month.toString().padLeft(2, '0');
+    final dia = ahora.day.toString().padLeft(2, '0');
+    return '$anio-$mes-$dia';
   }
 
   Future<void> _cargarDatos() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
-    // Extraemos el id_empresa del usuario (por defecto 1 si falla)
     final int idEmpresa = widget.usuario?['id_empresa'] ?? 1;
+    final String hoy = _fechaHoyIso();
 
-    // Ejecutamos ambas peticiones al mismo tiempo
+    // Ejecutamos las tres consultas reales en paralelo
     final resultados = await Future.wait([
       ApiService.alertasStockBajo(idEmpresa),
       ApiService.resumenInventario(idEmpresa),
+      ApiService.resumenAnalisisVentas(idEmpresa, desde: hoy, hasta: hoy),
     ]);
+
+    if (!mounted) return;
 
     final resAlertas = resultados[0];
     final resResumen = resultados[1];
+    final resVentasHoy = resultados[2];
 
     int unidades = 0;
+    int productosCatalogo = 0;
+    int ventasDeHoy = 0;
     List<dynamic> alertasObtenidas = [];
 
-    // Procesamos el resumen para calcular el total de unidades físicas
+    // 1. Procesamos el resumen para calcular unidades disponibles y total de referencias
     if (resResumen['statusCode'] == 200) {
       final resumen = resResumen['data']['resumen'] as List<dynamic>? ?? [];
+      productosCatalogo = resumen.length;
       for (var item in resumen) {
-        unidades += (item['disponibles'] as int? ?? 0);
+        unidades += int.tryParse(item['disponibles']?.toString() ?? '0') ?? 0;
       }
     }
 
-    // Procesamos las alertas
+    // 2. Procesamos las alertas de stock bajo
     if (resAlertas['statusCode'] == 200) {
       alertasObtenidas = resAlertas['data']['alertas'] as List<dynamic>? ?? [];
     }
 
+    // 3. Procesamos las ventas reales registradas en el día de hoy
+    if (resVentasHoy['statusCode'] == 200) {
+      final indicadores =
+          resVentasHoy['data']['indicadores'] as Map<String, dynamic>? ?? {};
+      ventasDeHoy =
+          int.tryParse(indicadores['unidades_vendidas']?.toString() ?? '0') ??
+          0;
+    }
+
     setState(() {
       _totalUnidades = unidades;
+      _totalProductos = productosCatalogo;
+      _ventasHoy = ventasDeHoy;
       _alertas = alertasObtenidas;
       _isLoading = false;
     });
@@ -103,20 +140,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             onPressed: () async {
-                              // 1. Abrimos la cámara y esperamos el código
                               final codigoEscaneado = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) =>
-                                      const ScannerScreen(usuario: {}),
+                                  builder: (context) => ScannerScreen(
+                                    usuario: widget.usuario ?? {},
+                                    modoSeleccion: true,
+                                  ),
                                 ),
                               );
 
-                              // 2. Si escaneó algo, procesamos la venta
                               if (codigoEscaneado != null) {
                                 if (!context.mounted) return;
 
-                                // Mostramos un mensaje de carga visual
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Buscando producto...'),
@@ -126,7 +162,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 final int idEmpresa =
                                     widget.usuario?['id_empresa'] ?? 1;
 
-                                // Traemos el inventario para buscar a qué id_objeto pertenece ese código
                                 final resInventario =
                                     await ApiService.obtenerInventario(
                                       idEmpresa,
@@ -138,7 +173,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           as List<dynamic>? ??
                                       [];
 
-                                  // Buscamos el objeto que coincida con el código de barras
                                   final objetoEscaneado = inventario
                                       .where(
                                         (item) =>
@@ -160,7 +194,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ),
                                           );
                                     } else {
-                                      // 3. Lo encontramos y está disponible, lo actualizamos a "Vendido"
                                       final resUpdate =
                                           await ApiService.actualizarObjeto(
                                             objetoEscaneado['id_objeto'],
@@ -168,6 +201,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           );
 
                                       if (resUpdate['statusCode'] == 200) {
+                                        // Registramos el movimiento SALIDA para que sume en "Ventas hoy"
+                                        await ApiService.registrarMovimiento(
+                                          idProducto:
+                                              objetoEscaneado['id_producto'],
+                                          tipo: 'SALIDA',
+                                          cantidad: 1,
+                                          motivo: 'Venta rápida por escáner',
+                                        );
+
+                                        if (!context.mounted) return;
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -177,8 +220,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             ),
                                           ),
                                         );
-                                        // Recargamos el dashboard para actualizar números
-                                        _cargarDatos();
+                                        inventarioNotifier.notificarCambio();
                                       } else {
                                         ScaffoldMessenger.of(
                                           context,
@@ -229,7 +271,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () async {
-                              // 1. Abrimos el escáner para leer el código de la unidad que llega
                               final codigoEscaneado = await Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -239,13 +280,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               );
 
-                              if (codigoEscaneado == null || !context.mounted)
+                              if (codigoEscaneado == null || !context.mounted) {
                                 return;
+                              }
 
                               final int idEmpresa =
                                   widget.usuario?['id_empresa'] ?? 1;
 
-                              // 2. Consultamos el catálogo de productos para saber a cuál asociarlo
                               final resProductos =
                                   await ApiService.obtenerProductos(idEmpresa);
                               if (!context.mounted) return;
@@ -274,7 +315,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 return;
                               }
 
-                              // 3. Abrimos un diálogo rápido para seleccionar el producto y la ubicación
                               int? productoSeleccionado =
                                   productos.first['id_producto'];
                               final ubicacionController =
@@ -369,13 +409,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ),
                                             ),
                                             onPressed: () async {
-                                              if (productoSeleccionado == null)
+                                              if (productoSeleccionado ==
+                                                  null) {
                                                 return;
-                                              Navigator.pop(
-                                                dialogContext,
-                                              ); // Cerramos el diálogo
+                                              }
+                                              Navigator.pop(dialogContext);
 
-                                              // 4. Enviamos el registro al backend
                                               final resInsert =
                                                   await ApiService.agregarInventario(
                                                     idProducto:
@@ -403,9 +442,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                                         ),
                                                       ),
                                                     );
-                                                _cargarDatos(); // Refrescamos los contadores del Dashboard
+                                                inventarioNotifier
+                                                    .notificarCambio();
                                               } else {
-                                                // Captura errores como código duplicado (409)
                                                 final errorMsg =
                                                     resInsert['data']['error'] ??
                                                     'Error al guardar';
@@ -457,7 +496,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // 3. Tarjeta Principal: Inventario Total
+                    // 3. Tarjeta Principal: Inventario disponible real
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -467,18 +506,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Inventario total',
+                        children: [
+                          const Text(
+                            'Inventario disponible',
                             style: TextStyle(
                               color: Colors.white70,
                               fontSize: 14,
                             ),
                           ),
-                          SizedBox(height: 8),
+                          const SizedBox(height: 8),
                           Text(
-                            '\$ 45.800.000', // Próximamente se calculará multiplicando stock * precio
-                            style: TextStyle(
+                            '$_totalUnidades unds',
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
                               fontWeight: FontWeight.bold,
@@ -489,21 +528,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // 4. Tarjetas Secundarias
+                    // 4. Tarjetas Secundarias conectadas a datos reales
                     Row(
                       children: [
                         Expanded(
                           child: _buildMetricCard(
                             title: 'Ventas hoy',
-                            value: '\$ 1.250.000',
-                            valueColor: Colors.greenAccent,
+                            value: '$_ventasHoy unds',
+                            valueColor: _ventasHoy > 0
+                                ? Colors.greenAccent
+                                : Colors.white,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: _buildMetricCard(
                             title: 'Productos',
-                            value: '$_totalUnidades unds', // Variable dinámica
+                            value: '$_totalProductos refs',
                             valueColor: Colors.white,
                           ),
                         ),
@@ -512,9 +553,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 32),
 
                     // 5. Alertas
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
+                      children: [
                         Text(
                           'Alertas de stock',
                           style: TextStyle(
@@ -531,7 +572,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Generación dinámica de alertas
                     if (_alertas.isEmpty)
                       const Text(
                         'Todo el inventario está en niveles óptimos.',
@@ -540,8 +580,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     else
                       ..._alertas.map((alerta) {
                         final disponibles = alerta['unidades_disponibles'] ?? 0;
-                        final isCritical =
-                            disponibles <= 2; // Lógica para marcar crítico
+                        final isCritical = disponibles <= 2;
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12.0),
@@ -556,12 +595,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   widget.usuario?['id_empresa'] ?? 1;
                               final int idProducto = alerta['id_producto'];
 
-                              // 1. Consultamos el endpoint de recomendaciones de compra
                               final resRec =
                                   await ApiService.recomendacionesCompra(
                                     idEmpresa,
                                     stockMinimo: 5,
-                                    stockObjetivo: 15, // Puedes ajustar el objetivo deseado aquí
+                                    stockObjetivo: 15,
                                   );
 
                               if (!context.mounted) return;
@@ -570,7 +608,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 final List<dynamic> recomendaciones =
                                     resRec['data']['recomendaciones'] ?? [];
 
-                                // Buscamos la recomendación específica para este producto
                                 final recProducto = recomendaciones
                                     .where(
                                       (item) =>
@@ -587,7 +624,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 final int objetivo =
                                     recProducto?['stock_objetivo'] ?? 15;
 
-                                // 2. Mostramos el resumen del pedido sugerido
                                 await showDialog(
                                   context: context,
                                   builder: (dialogContext) => AlertDialog(
@@ -708,7 +744,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             },
                           ),
                         );
-                      }).toList(),
+                      }),
 
                     const SizedBox(height: 90),
                   ],

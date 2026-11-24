@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/inventario_notifier.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class ScannerScreen extends StatefulWidget {
@@ -125,14 +126,34 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   encontrado['id_objeto'],
                   'Vendido',
                 );
+
+                if (resUpd['statusCode'] == 200) {
+                  // Registramos la salida contable y notificamos a todas las pantallas
+                  final int? idProd = int.tryParse(
+                    encontrado['id_producto']?.toString() ?? '',
+                  );
+                  if (idProd != null) {
+                    await ApiService.registrarMovimiento(
+                      idProducto: idProd,
+                      tipo: 'SALIDA',
+                      cantidad: 1,
+                      motivo: 'Venta desde pestaña Escáner',
+                    );
+                  }
+                  inventarioNotifier.notificarCambio();
+                }
+
                 if (!mounted) return;
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
                       resUpd['statusCode'] == 200
-                          ? 'Unidad marcada como Vendida'
+                          ? 'Unidad marcada como Vendida y sincronizada'
                           : (resUpd['data']['error'] ?? 'Error al actualizar'),
                     ),
+                    backgroundColor: resUpd['statusCode'] == 200
+                        ? Colors.green
+                        : Colors.redAccent,
                   ),
                 );
               },
@@ -204,7 +225,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             top: 16,
             right: 16,
             child: CircleAvatar(
-              backgroundColor: const Color(0xFF1E293B).withOpacity(0.85),
+              backgroundColor: const Color(0xFF1E293B).withValues(alpha: 0.85),
               child: _buildBotonLinterna(),
             ),
           ),

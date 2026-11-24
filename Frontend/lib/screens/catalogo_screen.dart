@@ -13,8 +13,11 @@ class CatalogoScreen extends StatefulWidget {
 }
 
 class _CatalogoScreenState extends State<CatalogoScreen> {
+  final TextEditingController _busquedaController = TextEditingController();
+
   List<dynamic> _productos = [];
   List<dynamic> _categorias = [];
+  String _terminoBusqueda = '';
   bool _isLoading = true;
   String _errorMessage = '';
   int _tabSeleccionada = 0; // 0: Productos, 1: Categorías
@@ -23,6 +26,12 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
   void initState() {
     super.initState();
     _cargarDatos();
+  }
+
+  @override
+  void dispose() {
+    _busquedaController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarDatos() async {
@@ -34,7 +43,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     final int idEmpresa =
         int.tryParse(widget.usuario['id_empresa']?.toString() ?? '1') ?? 1;
 
-    // Consultamos productos y categorías en paralelo
     final resultados = await Future.wait([
       ApiService.obtenerProductos(idEmpresa),
       ApiService.obtenerCategorias(idEmpresa),
@@ -63,7 +71,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     }
   }
 
-  // Se implementará en el Paso 2
   Future<void> _abrirFormularioCategoria({
     Map<String, dynamic>? categoria,
   }) async {
@@ -143,11 +150,16 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
               final Map<String, dynamic> res;
 
               if (esEdicion) {
+                final int idCat =
+                    int.tryParse(
+                      categoria['id_categoria']?.toString() ?? '0',
+                    ) ??
+                    0;
                 res = await ApiService.actualizarCategoria(
                   categoria,
                   nombre: nombre,
                   descripcion: desc,
-                  idCategoria: categoria.id,
+                  idCategoria: idCat,
                 );
               } else {
                 res = await ApiService.crearCategoria(
@@ -187,7 +199,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     );
   }
 
-  // Se implementará en el Paso 3
   Future<void> _abrirFormularioProducto({
     Map<String, dynamic>? producto,
   }) async {
@@ -211,7 +222,6 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     final int idEmpresa =
         int.tryParse(widget.usuario['id_empresa']?.toString() ?? '1') ?? 1;
 
-    // Resolvemos el id_categoria inicial (GET /productos devuelve el nombre, no el ID)
     int? categoriaSeleccionada;
     if (esEdicion) {
       final catEncontrada = _categorias
@@ -267,7 +277,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
-                  value: categoriaSeleccionada,
+                  initialValue: categoriaSeleccionada,
                   dropdownColor: const Color(0xFF0F172A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -387,6 +397,19 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     );
   }
 
+  List<dynamic> get _productosFiltrados {
+    if (_terminoBusqueda.isEmpty) return _productos;
+    final query = _terminoBusqueda.toLowerCase();
+    return _productos.where((p) {
+      final nombre = (p['nombre'] ?? '').toString().toLowerCase();
+      final marca = (p['marca'] ?? '').toString().toLowerCase();
+      final categoria = (p['categoria'] ?? '').toString().toLowerCase();
+      return nombre.contains(query) ||
+          marca.contains(query) ||
+          categoria.contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -430,6 +453,8 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
       );
     }
 
+    final listaProductos = _productosFiltrados;
+
     return SafeArea(
       child: Column(
         children: [
@@ -459,7 +484,55 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
             ),
           ),
 
-          // 2. Encabezado contextual con botón de creación
+          // 2. Barra de búsqueda instantánea (solo en pestaña Productos)
+          if (_tabSeleccionada == 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: TextField(
+                controller: _busquedaController,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                onChanged: (valor) {
+                  setState(() => _terminoBusqueda = valor.trim());
+                },
+                decoration: InputDecoration(
+                  hintText: 'Buscar por nombre, marca o categoría...',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 13,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Color(0xFF94A3B8),
+                    size: 20,
+                  ),
+                  suffixIcon: _terminoBusqueda.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFF94A3B8),
+                            size: 18,
+                          ),
+                          onPressed: () {
+                            _busquedaController.clear();
+                            setState(() => _terminoBusqueda = '');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: const Color(0xFF1E293B),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+
+          // 3. Encabezado contextual con botón de creación
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
@@ -467,7 +540,9 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
               children: [
                 Text(
                   _tabSeleccionada == 0
-                      ? 'Listado de productos'
+                      ? (_terminoBusqueda.isEmpty
+                            ? 'Listado de productos'
+                            : 'Resultados: ${listaProductos.length}')
                       : 'Categorías registradas',
                   style: const TextStyle(
                     color: Color(0xFF94A3B8),
@@ -509,12 +584,12 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
             ),
           ),
 
-          // 3. Contenido dinámico según la pestaña activa
+          // 4. Contenido dinámico según la pestaña activa
           Expanded(
             child: RefreshIndicator(
               onRefresh: _cargarDatos,
               child: _tabSeleccionada == 0
-                  ? _buildListaProductos()
+                  ? _buildListaProductos(listaProductos)
                   : _buildListaCategorias(),
             ),
           ),
@@ -562,16 +637,18 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     );
   }
 
-  Widget _buildListaProductos() {
-    if (_productos.isEmpty) {
+  Widget _buildListaProductos(List<dynamic> listaProductos) {
+    if (listaProductos.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 120),
+        children: [
+          const SizedBox(height: 120),
           Center(
             child: Text(
-              'No hay productos registrados en esta empresa.',
-              style: TextStyle(color: Color(0xFF94A3B8)),
+              _terminoBusqueda.isEmpty
+                  ? 'No hay productos registrados en esta empresa.'
+                  : 'No se encontraron productos para "$_terminoBusqueda".',
+              style: const TextStyle(color: Color(0xFF94A3B8)),
             ),
           ),
         ],
@@ -581,9 +658,9 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 90),
-      itemCount: _productos.length,
+      itemCount: listaProductos.length,
       itemBuilder: (context, index) {
-        final p = _productos[index];
+        final p = listaProductos[index];
         return Card(
           color: const Color(0xFF1E293B),
           margin: const EdgeInsets.only(bottom: 12.0),
@@ -595,7 +672,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.2),
+                color: const Color(0xFF2563EB).withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -688,7 +765,7 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
             leading: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.2),
+                color: const Color(0xFF2563EB).withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -725,8 +802,4 @@ class _CatalogoScreenState extends State<CatalogoScreen> {
       },
     );
   }
-}
-
-extension on Map<String, dynamic> {
-  int get id => this['id'] ?? 0;
 }

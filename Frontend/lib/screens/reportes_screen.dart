@@ -14,7 +14,7 @@ class ReportesScreen extends StatefulWidget {
 class _ReportesScreenState extends State<ReportesScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
-  int _tabSeleccionada = 0; // 0: Unidades Físicas, 1: Movimientos
+  int _tabSeleccionada = 0; // 0: Unidades, 1: Movimientos, 2: Top Ventas
 
   List<dynamic> _inventario = [];
   List<dynamic> _recomendaciones = [];
@@ -30,6 +30,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
 
   List<dynamic> _movimientos = [];
   List<dynamic> _productos = [];
+  List<dynamic> _rankingVentas = [];
   String _filtroTipoMov = 'Todos';
 
   final List<String> _tiposMovimiento = [
@@ -66,6 +67,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       ApiService.recomendacionesCompra(_idEmpresa),
       ApiService.obtenerMovimientos(idEmpresa: _idEmpresa),
       ApiService.obtenerProductos(_idEmpresa),
+      ApiService.productosMasVendidos(_idEmpresa, limite: 15),
     ]);
 
     if (!mounted) return;
@@ -74,6 +76,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     final resRec = resultados[1];
     final resMov = resultados[2];
     final resProd = resultados[3];
+    final resRanking = resultados[4];
 
     if (resInventario['statusCode'] == 200) {
       setState(() {
@@ -86,6 +89,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
         }
         if (resProd['statusCode'] == 200) {
           _productos = resProd['data']['productos'] ?? [];
+        }
+        if (resRanking['statusCode'] == 200) {
+          _rankingVentas = resRanking['data']['ranking'] ?? [];
         }
         _isLoading = false;
       });
@@ -177,7 +183,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ],
                 const Divider(color: Color(0xFF334155), height: 24),
                 DropdownButtonFormField<String>(
-                  value: estadoSeleccionado,
+                  initialValue: estadoSeleccionado,
                   dropdownColor: const Color(0xFF0F172A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -303,7 +309,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<int>(
-                  value: productoSeleccionado,
+                  initialValue: productoSeleccionado,
                   dropdownColor: const Color(0xFF0F172A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -327,7 +333,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: tipoSeleccionado,
+                  initialValue: tipoSeleccionado,
                   dropdownColor: const Color(0xFF0F172A),
                   style: const TextStyle(color: Colors.white),
                   decoration: const InputDecoration(
@@ -495,7 +501,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // 1. Tarjeta dinámica de Recomendación de Compra (Endpoint 19)
+          // 1. Tarjeta dinámica de Recomendación de Compra
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Container(
@@ -529,7 +535,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
             ),
           ),
 
-          // 2. Selector de pestañas: Unidades Físicas / Movimientos
+          // 2. Selector de pestañas: Unidades / Movimientos / Top Ventas
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Container(
@@ -547,8 +553,13 @@ class _ReportesScreenState extends State<ReportesScreen> {
                   ),
                   _buildTabButton(
                     index: 1,
-                    label: 'Movimientos (${_movimientos.length})',
+                    label: 'Movs (${_movimientos.length})',
                     icon: Icons.swap_horiz_rounded,
+                  ),
+                  _buildTabButton(
+                    index: 2,
+                    label: 'Top Ventas',
+                    icon: Icons.trending_up_rounded,
                   ),
                 ],
               ),
@@ -559,7 +570,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
           Expanded(
             child: _tabSeleccionada == 0
                 ? _buildVistaUnidades()
-                : _buildVistaMovimientos(),
+                : _tabSeleccionada == 1
+                ? _buildVistaMovimientos()
+                : _buildVistaTopVentas(),
           ),
         ],
       ),
@@ -576,7 +589,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
       child: GestureDetector(
         onTap: () => setState(() => _tabSeleccionada = index),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
             color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -586,16 +599,19 @@ class _ReportesScreenState extends State<ReportesScreen> {
             children: [
               Icon(
                 icon,
-                size: 16,
+                size: 15,
                 color: isSelected ? Colors.white : const Color(0xFF94A3B8),
               ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isSelected ? Colors.white : const Color(0xFF94A3B8),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],
@@ -691,7 +707,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: colorEstado.withOpacity(0.15),
+                              color: colorEstado.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -853,7 +869,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: colorTipo.withOpacity(0.15),
+                                  color: colorTipo.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -883,6 +899,134 @@ class _ReportesScreenState extends State<ReportesScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildVistaTopVentas() {
+    if (_rankingVentas.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _cargarDatos,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: const [
+            SizedBox(height: 100),
+            Center(
+              child: Text(
+                'Aún no hay ventas registradas para generar el ranking.',
+                style: TextStyle(color: Color(0xFF94A3B8)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final int maxVendidas = _rankingVentas.fold<int>(1, (maxVal, item) {
+      final v = int.tryParse(item['unidades_vendidas']?.toString() ?? '0') ?? 0;
+      return v > maxVal ? v : maxVal;
+    });
+
+    return RefreshIndicator(
+      onRefresh: _cargarDatos,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        itemCount: _rankingVentas.length,
+        itemBuilder: (context, index) {
+          final item = _rankingVentas[index];
+          final int vendidas =
+              int.tryParse(item['unidades_vendidas']?.toString() ?? '0') ?? 0;
+          final double proporcion = (vendidas / maxVendidas).clamp(0.05, 1.0);
+          final bool esPodio = index < 3;
+
+          return Card(
+            color: const Color(0xFF1E293B),
+            margin: const EdgeInsets.only(bottom: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: esPodio
+                              ? Colors.amber.withValues(alpha: 0.2)
+                              : const Color(0xFF334155),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '#${index + 1}',
+                          style: TextStyle(
+                            color: esPodio
+                                ? Colors.amberAccent
+                                : const Color(0xFFCBD5E1),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item['producto'] ?? 'Producto',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '${item['marca'] ?? 'Genérico'} • ${item['categoria'] ?? 'General'}',
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '$vendidas unds',
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: proporcion,
+                      minHeight: 6,
+                      backgroundColor: const Color(0xFF0F172A),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        esPodio
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
