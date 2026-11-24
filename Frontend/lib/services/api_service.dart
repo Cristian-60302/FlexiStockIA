@@ -521,4 +521,124 @@ class ApiService {
       };
     }
   }
+  // ==============================================
+  // ANÁLISIS DE VENTAS E INTELIGENCIA ARTIFICIAL
+  // ==============================================
+
+  // Endpoint 20: GET /analisis-ventas/resumen
+  static Future<Map<String, dynamic>> resumenAnalisisVentas(
+    int idEmpresa, {
+    String? desde,
+    String? hasta,
+  }) async {
+    try {
+      String query = 'id_empresa=$idEmpresa';
+      if (desde != null && desde.isNotEmpty) query += '&desde=$desde';
+      if (hasta != null && hasta.isNotEmpty) query += '&hasta=$hasta';
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/analisis-ventas/resumen?$query'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando el resumen de ventas'},
+      };
+    }
+  }
+
+  // Endpoint 21: GET /analisis-ventas/productos
+  static Future<Map<String, dynamic>> rankingProductosVendidos(
+    int idEmpresa, {
+    String? desde,
+    String? hasta,
+    int limite = 5,
+  }) async {
+    try {
+      String query = 'id_empresa=$idEmpresa&limite=$limite';
+      if (desde != null && desde.isNotEmpty) query += '&desde=$desde';
+      if (hasta != null && hasta.isNotEmpty) query += '&hasta=$hasta';
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/analisis-ventas/productos?$query'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando el ranking de productos'},
+      };
+    }
+  }
+
+  // Endpoint 22: GET /analisis-ventas/categorias
+  static Future<Map<String, dynamic>> analisisVentasCategorias(
+    int idEmpresa, {
+    String? desde,
+    String? hasta,
+  }) async {
+    try {
+      String query = 'id_empresa=$idEmpresa';
+      if (desde != null && desde.isNotEmpty) query += '&desde=$desde';
+      if (hasta != null && hasta.isNotEmpty) query += '&hasta=$hasta';
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/analisis-ventas/categorias?$query'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {'error': 'Error consultando ventas por categoría'},
+      };
+    }
+  }
+
+  // Endpoint 23: POST /asistente/chat
+  static Future<Map<String, dynamic>> consultarAsistenteIA({
+    required int idUsuario,
+    required int idEmpresa,
+    required String pregunta,
+    List<Map<String, dynamic>> historial = const [],
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/asistente/chat'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'id_usuario': idUsuario,
+              'id_empresa': idEmpresa,
+              'pregunta': pregunta,
+              'historial': historial,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      return {
+        'statusCode': response.statusCode,
+        'data': jsonDecode(response.body),
+      };
+    } catch (e) {
+      return {
+        'statusCode': 500,
+        'data': {
+          'error': 'El asistente tardó demasiado o no pudo conectarse con el servidor',
+        },
+      };
+    }
+  }
 }
