@@ -402,16 +402,48 @@ class _AsistenteIAScreenState extends State<AsistenteIAScreen> {
               ? null
               : Border.all(color: const Color(0xFF334155), width: 1),
         ),
-        child: SelectableText(
-          contenido,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            height: 1.4,
-          ),
-        ),
+        child: SelectableText.rich(_formatearTextoMarkdown(contenido)),
       ),
     );
+  }
+
+  TextSpan _formatearTextoMarkdown(String texto) {
+    const estiloBase = TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      height: 1.4,
+    );
+    const estiloNegrita = TextStyle(
+      color: Colors.white,
+      fontSize: 14,
+      height: 1.4,
+      fontWeight: FontWeight.bold,
+    );
+
+    final List<TextSpan> spans = [];
+    final regex = RegExp(r'\*\*(.*?)\*\*', dotAll: true);
+    int ultimoIndice = 0;
+
+    for (final match in regex.allMatches(texto)) {
+      if (match.start > ultimoIndice) {
+        spans.add(
+          TextSpan(
+            text: texto.substring(ultimoIndice, match.start),
+            style: estiloBase,
+          ),
+        );
+      }
+      spans.add(TextSpan(text: match.group(1), style: estiloNegrita));
+      ultimoIndice = match.end;
+    }
+
+    if (ultimoIndice < texto.length) {
+      spans.add(
+        TextSpan(text: texto.substring(ultimoIndice), style: estiloBase),
+      );
+    }
+
+    return TextSpan(style: estiloBase, children: spans);
   }
 
   Widget _buildIndicadorEscribiendo() {
